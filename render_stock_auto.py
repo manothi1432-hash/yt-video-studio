@@ -1,10 +1,6 @@
 import os
 import json
-import math
 import time
-import wave
-import struct
-import random
 import subprocess
 import requests
 from io import BytesIO
@@ -14,7 +10,7 @@ from google import genai
 from google.genai import types
 
 topic = os.environ["TOPIC"].strip()
-vtype = os.environ.get("VIDEO_TYPE", "short").strip().lower()
+vtype = os.environ.get("VIDEO_TYPE", "long").strip().lower()
 is_long = (vtype == "long")
 W, H = (1280, 720) if is_long else (720, 1280)
 SCENES_N = 12 if is_long else 7
@@ -25,7 +21,7 @@ WORK.mkdir(exist_ok=True)
 HEADERS = {"User-Agent": "YTVideoStudio/1.0 (educational project)"}
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-prompt = f"""You are a viral USA YouTube documentary director.
+prompt = f"""You are a viral USA YouTube documentary scriptwriter.
 Break this topic into {SCENES_N} high-retention scenes: "{topic}"
 
 Return ONLY valid JSON:
@@ -33,8 +29,7 @@ Return ONLY valid JSON:
   "scenes": [
     {{
       "narration": "{'1-2 dramatic US English sentences (140-220 chars)' if is_long else '1 punchy US English sentence (under 130 chars)'}",
-      "search_query": "2-3 word Wikimedia/NASA photo search query in English",
-      "key_text": "optional 1-3 word UPPERCASE hook/stat (e.g. NO ESCAPE, 100 MILLION) on important scenes, else empty string"
+      "search_query": "2-3 word Wikimedia/NASA photo search query in English"
     }}
   ]
 }}"""
@@ -67,36 +62,13 @@ def get_dur(p: Path) -> float:
     )
     return float(r.stdout.strip())
 
-def make_sfx(out_wav: Path, has_boom: bool):
-    sr = 44100
-    dur = 0.75 if has_boom else 0.40
-    n = int(sr * dur)
-    samples = []
-    lp = 0.0
-    for i in range(n):
-        t = i / sr
-        env = math.sin(min(1.0, t / 0.12) * math.pi / 2) * math.exp(-t * 5.5)
-        noise = (random.random() * 2 - 1)
-        lp = lp * 0.85 + noise * 0.15
-        val = lp * env * 0.6
-        if has_boom:
-            freq = 68.0 - 34.0 * min(1.0, t / 0.5)
-            val += math.sin(2 * math.pi * freq * t) * math.exp(-t * 4.2) * 0.85
-        s = max(-32767, min(32767, int(val * 32767)))
-        samples.append(struct.pack("<h", s))
-    with wave.open(str(out_wav), "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sr)
-        wf.writeframes(b"".join(samples))
-
 def ass_time(sec: float) -> str:
     h = int(sec // 3600)
     m = int((sec % 3600) // 60)
     s = sec % 60
     return f"{h}:{m:02d}:{s:05.2f}"
 
-def write_ass(text: str, key_text: str, dur: float, out_path: Path):
+def write_ass(text: str, dur: float, out_path: Path):
     words = text.split()
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -105,17 +77,13 @@ PlayResY: {H}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Pop,DejaVu Sans,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,4,2,2,40,40,300,1
-Style: BigKey,DejaVu Sans,64,&H0015CCFA,&H0015CCFA,&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,5,3,8,40,40,120,1
+Style: Pop,DejaVu Sans,44,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,2,2,40,40,280,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     lines = []
-    if key_text:
-        kt = key_text.strip().upper()
-        lines.append(f"Dialogue: 1,0:00:00.00,{ass_time(min(dur, 2.2))},BigKey,,0,0,0,,{kt}")
-    if (not is_long) and words:
+    if words:
         step = dur / len(words)
         for i, w in enumerate(words):
             st = ass_time(i * step)
@@ -172,7 +140,7 @@ clips = []
 for idx, sc in enumerate(plan, start=1):
     mp3 = WORK / f"a_{idx:02d}.mp3"
     subprocess.run([
-        "edge-tts", "--voice", VOICE, "--rate=+14%",
+        "edge-tts", "--voice", VOICE, "--rate=+12%",
         "--text", sc["narration"], "--write-media", str(mp3)
     ], check=True)
     dur = get_dur(mp3) + 0.08
@@ -181,11 +149,6 @@ for idx, sc in enumerate(plan, start=1):
     raw_jpg = WORK / f"img_{idx:02d}.jpg"
     fetch_free_image(sc["search_query"], raw_jpg)
 
-    sfx_wav = WORK / f"sfx_{idx:02d}.wav"
-    key_txt = (sc.get("key_text") or "").strip()
-    make_sfx(sfx_wav, has_boom=bool(key_txt))
-
-    # 4 Alternating Camera Motions: Zoom-in, Zoom-out, Pan Left, Pan Right
     m_type = idx % 4
     if m_type == 0:
         zp = f"z='min(1+0.20*on/{frames},1.22)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
@@ -197,24 +160,24 @@ for idx, sc in enumerate(plan, start=1):
         zp = f"z='1.18':x='(iw-iw/zoom)*(on/{frames})':y='ih/2-(ih/zoom/2)'"
 
     vf = (f"scale={W*2}:{H*2}:force_original_aspect_ratio=increase,crop={W*2}:{H*2},"
-          f"zoompan={zp}:d={frames}:s={W}x{H}:fps=24,setsar=1")
+          f"zoompan={zp}:d={frames}:s={W}x{H}:fps=24,setsar=1,"
+          f"eq=contrast=1.08:saturation=1.10,vignette=PI/4.5")
 
-    if (not is_long) or key_txt:
+    if not is_long:
         ass_file = WORK / f"sub_{idx:02d}.ass"
-        write_ass(sc["narration"], key_txt, dur, ass_file)
+        write_ass(sc["narration"], dur, ass_file)
         vf += f",ass={ass_file.as_posix()}"
 
     clip_mp4 = WORK / f"clip_{idx:02d}.mp4"
     subprocess.run([
-        "ffmpeg", "-y", "-i", str(raw_jpg), "-i", str(mp3), "-i", str(sfx_wav),
-        "-vf", vf,
-        "-filter_complex", "[1:a]acompressor=threshold=-18dB:ratio=3:attack=5:release=50[vo];[2:a]volume=0.45[fx];[vo][fx]amix=inputs=2:duration=first,loudnorm=I=-14:TP=-1.5:LRA=7[aout]",
-        "-map", "0:v", "-map", "[aout]", "-t", f"{dur:.3f}",
+        "ffmpeg", "-y", "-i", str(raw_jpg), "-i", str(mp3),
+        "-vf", vf, "-t", f"{dur:.3f}",
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20",
+        "-af", "acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-14:TP=-1.5:LRA=7",
         "-c:a", "aac", "-b:a", "192k", str(clip_mp4)
     ], check=True)
     clips.append(clip_mp4)
-    print(f"Done scene {idx}/{len(plan)}: {sc['search_query']} | key={key_txt} ({dur:.2f}s)")
+    print(f"Done scene {idx}/{len(plan)}: {sc['search_query']} ({dur:.2f}s)")
 
 concat_txt = WORK / "concat.txt"
 concat_txt.write_text("\n".join(f"file '{c.resolve()}'" for c in clips), encoding="utf-8")
