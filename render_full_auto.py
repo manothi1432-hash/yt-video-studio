@@ -13,7 +13,7 @@ for d in (AUD_DIR, FRM_DIR, CLIP_DIR):
 story = json.loads(Path("story.json").read_text(encoding="utf-8"))
 W, H = story.get("width", 720), story.get("height", 1280)
 FPS = 24
-VOICE = story.get("voice", "en-US-AndrewNeural")
+VOICE = story.get("voice", "en-US-BrianMultilingualNeural")
 
 def get_dur(mp3_path: Path) -> float:
     res = subprocess.run(
@@ -25,21 +25,24 @@ def get_dur(mp3_path: Path) -> float:
 
 clip_paths = []
 with sync_playwright() as p:
-    browser = p.chromium.launch()
+    browser = p.chromium.launch(
+        args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"]
+    )
     page = browser.new_page(viewport={"width": W, "height": H})
 
     for idx, sc in enumerate(story["scenes"], start=1):
         mp3_path = AUD_DIR / f"scene_{idx:02d}.mp3"
         subprocess.run([
-            "edge-tts", "--voice", VOICE,
+            "edge-tts", "--voice", VOICE, "--rate=+12%",
             "--text", sc["narration"], "--write-media", str(mp3_path)
         ], check=True)
-        dur = get_dur(mp3_path) + 0.25
+        dur = get_dur(mp3_path) + 0.08
         total_frames = int(dur * FPS)
 
         html_file = WORK / f"scene_{idx:02d}.html"
         html_file.write_text(sc["html"], encoding="utf-8")
-        page.goto(html_file.resolve().as_uri())
+        page.goto(html_file.resolve().as_uri(), wait_until="networkidle")
+        page.wait_for_timeout(300)
 
         sc_frames = FRM_DIR / f"s_{idx:02d}"
         sc_frames.mkdir(parents=True, exist_ok=True)
@@ -53,6 +56,7 @@ with sync_playwright() as p:
             "ffmpeg", "-y", "-framerate", str(FPS),
             "-i", str(sc_frames / "f_%04d.png"), "-i", str(mp3_path),
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20",
+            "-af", "acompressor=threshold=-18dB:ratio=3:attack=5:release=50,loudnorm=I=-14:TP=-1.5:LRA=7",
             "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}", str(clip_mp4)
         ], check=True)
         clip_paths.append(clip_mp4)
@@ -68,4 +72,3 @@ subprocess.run([
     "-c", "copy", "-movflags", "+faststart", "final_video.mp4"
 ], check=True)
 print("SUCCESS: final_video.mp4 ready!")
-
