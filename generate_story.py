@@ -20,40 +20,42 @@ length_hint = "2-3 engaging US English sentences (250-350 chars)" if is_long els
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-prompt = f"""You are a viral YouTube video director (RicksClips / Neon-Rush-3D style).
-Break this topic into {scene_count} vivid scenes: "{topic}"
+prompt = f"""You are a viral YouTube video director (BossFight3000 / RicksClips style).
+Break this topic into {scene_count} high-energy scenes: "{topic}"
 
 Return ONLY valid JSON with this exact schema:
 {{
   "scenes": [
     {{
       "narration": "{length_hint}",
-      "setting": "ocean_ship",
-      "sky": "day",
-      "camera_move": "orbit_left",
+      "setting": "castle_battle",
+      "sky": "sunset",
+      "camera_move": "whip_zoom",
+      "fx": "fire",
       "hat": "tophat",
       "shirt_color": "#b91c1c",
       "emotion": "determined",
       "action": "walk",
       "prop": "ice_block",
-      "headline": "A SHIP FULL OF ICE?!",
+      "headline": "FIRE POTS!",
       "stat_text": "",
-      "has_buddy": false
+      "has_buddy": true
     }}
   ]
 }}
 
 Allowed values:
-- setting: "ocean_ship", "town_bridge", "ice_pond", "city_street", "forest_camp", "office_room", "earth_space"
+- setting: "castle_battle", "ocean_ship", "town_bridge", "ice_pond", "city_street", "forest_camp", "office_room", "earth_space"
 - sky: "day", "sunset", "night"
-- camera_move: "dolly_in", "orbit_left", "orbit_right", "closeup", "pan_up", "low_hero"
+- camera_move: "whip_zoom", "impact_shake", "fly_follow", "orbit_left", "orbit_right", "low_hero", "pan_up"
+- fx: "fire", "sparks", "snow", "none"
 - hat: "tophat", "cap", "crown", "none"
 - emotion: "happy", "shocked", "smug", "determined", "sad"
 - action: "walk", "wave", "point", "talk"
 - prop: "ice_block", "newspaper", "gold_coin", "map", "none"
 - headline: short 2-4 word text if prop is newspaper, else ""
 - stat_text: optional bold 1-3 word number/fact at top (e.g. "1806", "8.7 MILLION") for key scenes, else ""
-- has_buddy: true or false (add a 2nd reacting stick-figure character)"""
+- has_buddy: true or false"""
 
 MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 resp = None
@@ -92,7 +94,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
          font-size:48px; font-weight:900; color:#fff;
          text-shadow: 0 4px 0 #000, -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000;
          pointer-events:none; width:88%; line-height:1.12; }
-  .hi { color:#facc15; transform:scale(1.14); display:inline-block; }
+  .hi { color:#facc15; transform:scale(1.15); display:inline-block; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 </head><body>
@@ -109,34 +111,42 @@ const scene = new THREE.Scene();
 const skyColors = { day: 0x56b4f9, sunset: 0xf97316, night: 0x0b1120 };
 const isSpace = (CFG.setting === "earth_space");
 scene.background = new THREE.Color(isSpace ? 0x050816 : (skyColors[CFG.sky] || 0x56b4f9));
-scene.fog = new THREE.Fog(scene.background, 16, 58);
+scene.fog = new THREE.Fog(scene.background, 18, 60);
 
-const camera = new THREE.PerspectiveCamera(46, W/H, 0.1, 120);
+const camera = new THREE.PerspectiveCamera(48, W/H, 0.1, 120);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(W, H);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
 const sun = new THREE.DirectionalLight(CFG.sky === "sunset" ? 0xfdba74 : 0xfffbeb, 1.35);
 sun.position.set(10, 16, 12);
 sun.castShadow = true;
 scene.add(sun);
 
+const outlineMat = new THREE.LineBasicMaterial({ color: 0x111111 });
+function addOutline(mesh, geo) {
+  mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), outlineMat));
+}
 function box(w,h,d,col,x,y,z,ry=0,em=0x000000){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({color:col, emissive:em, roughness:0.7}));
-  m.position.set(x,y,z); m.rotation.y=ry; m.castShadow=true; m.receiveShadow=true; scene.add(m); return m;
+  const geo = new THREE.BoxGeometry(w,h,d);
+  const m = new THREE.Mesh(geo, new THREE.MeshToonMaterial({color:col, emissive:em}));
+  m.position.set(x,y,z); m.rotation.y=ry; m.castShadow=true; m.receiveShadow=true;
+  addOutline(m, geo); scene.add(m); return m;
 }
 function cyl(rt,rb,h,col,x,y,z,rz=0){
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,14), new THREE.MeshStandardMaterial({color:col, roughness:0.75}));
-  m.position.set(x,y,z); m.rotation.z=rz; m.castShadow=true; scene.add(m); return m;
+  const geo = new THREE.CylinderGeometry(rt,rb,h,12);
+  const m = new THREE.Mesh(geo, new THREE.MeshToonMaterial({color:col}));
+  m.position.set(x,y,z); m.rotation.z=rz; m.castShadow=true;
+  addOutline(m, geo); scene.add(m); return m;
 }
 function sph(r,col,x,y,z,em=0x000000){
-  const m = new THREE.Mesh(new THREE.SphereGeometry(r,16,12), new THREE.MeshStandardMaterial({color:col, emissive:em, roughness:0.6}));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r,14,10), new THREE.MeshToonMaterial({color:col, emissive:em}));
   m.position.set(x,y,z); m.castShadow=true; scene.add(m); return m;
 }
 
-// Sky Sun/Moon & Drifting Clouds
+// Sky Sun/Moon, Clouds & Hills
 const clouds = [];
 if (!isSpace) {
   sph(1.8, CFG.sky==="night" ? 0xe2e8f0 : 0xfef08a, -9, 12, -28, CFG.sky==="night" ? 0x94a3b8 : 0xfacc15);
@@ -149,40 +159,43 @@ if (!isSpace) {
     });
     g.position.set(cx,cy,cz); scene.add(g); clouds.push(g);
   }
-  // Distant Rolling Hills
-  for (let i=-3; i<=3; i++) sph(5.5, 0x3f6212, i*6, -2.5, -24);
+  for (let i=-3; i<=3; i++) sph(5.8, 0x3f6212, i*6, -2.5, -24);
 }
 
 // Ground / Animated Water
 const isWater = (CFG.setting === "ocean_ship" || CFG.setting === "town_bridge");
-let ground = null, groundPos = null;
+let groundPos = null;
 if (!isSpace) {
   const groundGeo = new THREE.PlaneGeometry(90, 90, 28, 28);
-  const groundMat = new THREE.MeshStandardMaterial({
-    color: isWater ? 0x0284c7 : 0x4d7c0f,
-    roughness: isWater ? 0.15 : 0.92,
-    metalness: isWater ? 0.25 : 0.0
-  });
-  ground = new THREE.Mesh(groundGeo, groundMat);
+  const groundMat = new THREE.MeshToonMaterial({ color: isWater ? 0x0284c7 : 0x4d7c0f });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
   groundPos = groundGeo.attributes.position;
 }
 
-// Detailed 3D Environments
 let earthGlobe = null;
-if (CFG.setting === "ocean_ship") {
-  box(4.8, 0.35, 11, 0x78350f, 0, 0.35, 1.5); // dock deck
+if (CFG.setting === "castle_battle") {
+  // Toon Castle Wall, Gate, Towers & Banners
+  box(18, 5.5, 1.5, 0xb45309, 0, 2.75, -5.5);
+  box(4.2, 3.8, 1.8, 0x451a03, 0, 1.9, -5.4); // wooden gate
+  for(let x=-7; x<=7; x+=2.3) box(1.2, 1.0, 1.7, 0x92400e, x, 5.9, -5.5); // battlements
+  for(let tx of [-8.5, 8.5]) {
+    box(3.2, 7.5, 3.2, 0x78716c, tx, 3.75, -5.5);
+    cyl(0.1, 2.4, 2.8, 0x1e3a8a, tx, 8.9, -5.5); // blue cone roof
+    box(0.8, 2.0, 0.1, 0x2563eb, tx, 4.2, -3.8); // banner
+  }
+  box(2.2, 1.4, 1.6, 0x92400e, -2.8, 0.7, -1.5); // crate
+} else if (CFG.setting === "ocean_ship") {
+  box(4.8, 0.35, 11, 0x78350f, 0, 0.35, 1.5);
   for(let z=-3; z<=5; z+=2){ cyl(0.15,0.15,1.2,0x451a03,-2.1,0.1,z); cyl(0.15,0.15,1.2,0x451a03,2.1,0.1,z); }
-  // Ship
   box(5.5, 2.0, 12, 0x451a03, 0, 1.0, -7.5, 0.18);
   box(5.7, 0.4, 12.2, 0x78350f, 0, 2.1, -7.5, 0.18);
   cyl(0.16, 0.2, 8.5, 0x78350f, 0, 5.5, -7.5);
   box(4.2, 3.4, 0.12, 0xfef3c7, 0, 6.2, -7.1, 0.18);
-  // Palm tree + ice crates
   cyl(0.18, 0.28, 4.5, 0x78350f, 2.0, 2.4, 2.5, -0.15);
-  for(let a=0;a<5;a++){ box(1.8,0.12,0.5,0x15803d, 2.4+Math.cos(a)*0.8, 4.6, 2.5+Math.sin(a)*0.8, a); }
+  for(let a=0;a<5;a++) box(1.8,0.12,0.5,0x15803d, 2.4+Math.cos(a)*0.8, 4.6, 2.5+Math.sin(a)*0.8, a);
   box(1.1, 1.1, 1.1, 0xbae6fd, -1.4, 1.05, 1.8);
   box(0.9, 0.9, 0.9, 0x7dd3fc, -1.4, 2.0, 1.8, 0.3);
 } else if (CFG.setting === "town_bridge") {
@@ -192,7 +205,7 @@ if (CFG.setting === "ocean_ship") {
   for(let x=-6;x<=6;x+=3){ cyl(0.08,0.08,1.0,0x451a03,x,1.3,1.6); cyl(0.08,0.08,1.0,0x451a03,x,1.3,-1.6); }
   box(5, 3.8, 4, 0xe7e5e4, -5.5, 1.9, -6);
   box(5.6, 1.8, 4.6, 0x991b1b, -5.5, 4.6, -6);
-  box(1.1, 1.2, 0.1, 0xfef08a, -5.5, 2.2, -3.95, 0, 0xfacc15); // glowing window
+  box(1.1, 1.2, 0.1, 0xfef08a, -5.5, 2.2, -3.95, 0, 0xfacc15);
   box(5, 4.4, 4, 0xfef3c7, 5.5, 2.2, -6.5);
   box(5.6, 1.8, 4.6, 0x1e3a8a, 5.5, 5.2, -6.5);
   box(1.1, 1.2, 0.1, 0xfef08a, 5.5, 2.4, -4.45, 0, 0xfacc15);
@@ -210,24 +223,35 @@ if (CFG.setting === "ocean_ship") {
   });
 } else if (CFG.setting === "office_room") {
   box(18, 9, 0.3, 0xf1f5f9, 0, 4.5, -5);
-  box(3.5, 2.5, 0.15, 0x38bdf8, -4, 4.8, -4.8, 0, 0x0284c7); // window
+  box(3.5, 2.5, 0.15, 0x38bdf8, -4, 4.8, -4.8, 0, 0x0284c7);
   box(4.4, 1.3, 2.2, 0x78350f, 0, 0.65, -2.2);
   box(1.8, 1.1, 0.12, 0x0f172a, 0, 1.9, -2.2);
   box(1.6, 0.9, 0.14, 0x38bdf8, 0, 1.9, -2.18, 0, 0x0284c7);
 } else if (isSpace) {
   for(let i=0;i<40;i++) sph(0.08, 0xffffff, (Math.sin(i*17)*18), (Math.cos(i*23)*12)+2, -15-(i%10), 0xffffff);
   earthGlobe = new THREE.Group();
-  const ocean = new THREE.Mesh(new THREE.SphereGeometry(3.2, 24, 24), new THREE.MeshStandardMaterial({color:0x0284c7, roughness:0.3}));
-  earthGlobe.add(ocean);
-  const cont1 = new THREE.Mesh(new THREE.SphereGeometry(3.24, 12, 12, 0, 1.5, 0.6, 1.2), new THREE.MeshStandardMaterial({color:0x22c55e}));
-  earthGlobe.add(cont1);
+  earthGlobe.add(new THREE.Mesh(new THREE.SphereGeometry(3.2, 24, 24), new THREE.MeshToonMaterial({color:0x0284c7})));
+  earthGlobe.add(new THREE.Mesh(new THREE.SphereGeometry(3.24, 12, 12, 0, 1.5, 0.6, 1.2), new THREE.MeshToonMaterial({color:0x22c55e})));
   earthGlobe.position.set(0, -1.6, 0.8);
   scene.add(earthGlobe);
 } else {
   for(let i=-3;i<=3;i+=2){ cyl(0.22,0.32,2.6,0x78350f,i*2.2,1.3,-4.5); sph(1.5,0x15803d,i*2.2,3.4,-4.5); }
 }
 
-function makeCharCanvas(cfg) {
+// 3D Particles (Fire, Smoke, Sparks, Snow)
+const particles = [];
+const fxType = CFG.fx || "none";
+if (fxType !== "none") {
+  for (let i=0; i<22; i++) {
+    const col = fxType === "fire" ? (i%3===0?0x334155:(i%2===0?0xf97316:0xfacc15)) : (fxType==="snow"?0xffffff:0xfacc15);
+    const pm = new THREE.Mesh(new THREE.SphereGeometry(fxType==="snow"?0.12:(0.35+(i%3)*0.18), 8, 8),
+                              new THREE.MeshBasicMaterial({color: col, transparent:true, opacity:0.88}));
+    pm.userData = { ox:(Math.sin(i*19)*4.5), oz:-4.2 + Math.cos(i*11)*1.5, speed: 1.5 + (i%4)*0.6, off: i*0.4 };
+    scene.add(pm); particles.push(pm);
+  }
+}
+
+function makeCharCanvas() {
   const c2 = document.createElement("canvas");
   c2.width = 512; c2.height = 640;
   const ctx = c2.getContext("2d");
@@ -237,13 +261,13 @@ function makeCharCanvas(cfg) {
   return { c2, ctx, tex, mesh };
 }
 
-const mainChar = makeCharCanvas(CFG);
+const mainChar = makeCharCanvas();
 mainChar.mesh.position.set(CFG.has_buddy ? -0.9 : 0, 1.85, 1.3);
 scene.add(mainChar.mesh);
 
 let buddyChar = null;
 if (CFG.has_buddy) {
-  buddyChar = makeCharCanvas(CFG);
+  buddyChar = makeCharCanvas();
   buddyChar.mesh.position.set(1.2, 1.85, 1.1);
   scene.add(buddyChar.mesh);
 }
@@ -260,15 +284,12 @@ function drawPerson(ch, t, cfg, isBuddy=false) {
   const armWave = (!isBuddy && (cfg.action === "wave" || cfg.action === "point")) ? Math.sin(t * 6) * 38 : Math.sin(t * 3 + phase) * 12;
 
   ctx.save();
-  ctx.translate(256, 420);
-  ctx.rotate(tilt);
-  ctx.translate(-256, -420);
+  ctx.translate(256, 420); ctx.rotate(tilt); ctx.translate(-256, -420);
   ctx.lineCap = "round"; ctx.lineJoin = "round";
 
   ctx.strokeStyle = "#111"; ctx.lineWidth = 14;
   ctx.beginPath(); ctx.moveTo(235, 420-bob); ctx.lineTo(220+legSwing, 570); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(277, 420-bob); ctx.lineTo(292-legSwing, 570); ctx.stroke();
-
   ctx.beginPath(); ctx.moveTo(205, 315-bob); ctx.lineTo(138, 385-bob-armWave); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(307, 315-bob); ctx.lineTo(374, 375-bob+armWave*0.5); ctx.stroke();
 
@@ -342,7 +363,8 @@ function drawPerson(ch, t, cfg, isBuddy=false) {
 const words = CFG.narration.split(/\s+/).filter(Boolean);
 window.renderAt = (t, d) => {
   const rawP = Math.min(1, t / Math.max(0.1, d));
-  const p = rawP * rawP * (3 - 2 * rawP); // Smooth ease-in-out
+  const p = rawP * rawP * (3 - 2 * rawP);
+  const whip = 1 - Math.pow(1 - rawP, 4); // Fast BossFight3000 crash-zoom curve!
 
   clouds.forEach((c, idx) => { c.position.x += Math.sin(t*0.5 + idx) * 0.005; });
   if (isWater && groundPos) {
@@ -354,23 +376,39 @@ window.renderAt = (t, d) => {
   }
   if (earthGlobe) earthGlobe.rotation.y = t * 0.35;
 
+  particles.forEach((pm) => {
+    const u = pm.userData;
+    if (fxType === "snow") {
+      pm.position.set(u.ox + Math.sin(t+u.off)*0.4, 8 - ((t*u.speed + u.off) % 8), u.oz + 4);
+    } else {
+      const h = (t * u.speed + u.off) % 5.5;
+      pm.position.set(u.ox + Math.sin(t*3+u.off)*0.35, 0.5 + h, u.oz);
+      pm.scale.setScalar(Math.max(0.2, 1 - h/6));
+    }
+  });
+
   drawPerson(mainChar, t, CFG, false);
   if (buddyChar) drawPerson(buddyChar, t, CFG, true);
 
-  if (CFG.camera_move === "orbit_left") {
-    camera.position.set(-3.0 + p * 4.2, 2.5, 7.6 - p * 1.4);
+  let sx = 0, sy = 0;
+  if (CFG.camera_move === "whip_zoom") {
+    camera.position.set(-1.5 + whip * 1.5, 2.6 - whip * 0.3, 10.5 - whip * 5.8);
+  } else if (CFG.camera_move === "impact_shake") {
+    const shake = Math.max(0, 1 - rawP * 2) * 0.28;
+    sx = Math.sin(t * 48) * shake; sy = Math.cos(t * 53) * shake;
+    camera.position.set(sx, 2.3 + sy, 8.8 - whip * 4.0);
+  } else if (CFG.camera_move === "fly_follow") {
+    camera.position.set(-2.5 + p * 3.0, 3.8 - p * 1.5, 11.5 - p * 6.5);
+  } else if (CFG.camera_move === "orbit_left") {
+    camera.position.set(-3.4 + p * 4.8, 2.5, 7.6 - p * 1.4);
   } else if (CFG.camera_move === "orbit_right") {
-    camera.position.set(3.0 - p * 4.2, 2.5, 7.6 - p * 1.4);
-  } else if (CFG.camera_move === "closeup") {
-    camera.position.set(0, 2.3, 5.4 - p * 1.8);
-  } else if (CFG.camera_move === "pan_up") {
-    camera.position.set(0, 1.1 + p * 2.4, 7.4);
+    camera.position.set(3.4 - p * 4.8, 2.5, 7.6 - p * 1.4);
   } else if (CFG.camera_move === "low_hero") {
-    camera.position.set(-0.6 + p * 1.2, 1.1, 6.2 - p * 1.2);
+    camera.position.set(-0.7 + p * 1.4, 1.0, 6.2 - p * 1.4);
   } else {
-    camera.position.set(0, 2.4, 8.4 - p * 2.6);
+    camera.position.set(0, 1.2 + p * 2.4, 7.6 - p * 1.2);
   }
-  camera.lookAt(0, 2.0, 0.5);
+  camera.lookAt(sx*0.5, 2.0 + sy*0.5, 0.5);
   if (CFG.action === "walk" && !CFG.has_buddy) mainChar.mesh.position.x = -1.4 + rawP * 2.8;
 
   if (SHOW_CAP) {
@@ -401,4 +439,4 @@ for sc in plan["scenes"]:
 
 out = {"width": W, "height": H, "voice": "en-US-BrianMultilingualNeural", "scenes": story_scenes}
 Path("story.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-print(f"Generated {len(story_scenes)} ({vtype}) upgraded 3D+2D scenes for: {topic}")
+print(f"Generated {len(story_scenes)} ({vtype}) BossFight3000-style scenes for: {topic}")
