@@ -1,0 +1,43 @@
+name: Hydraulic Press 3D
+
+on:
+  workflow_dispatch:
+    inputs:
+      items:
+        description: 'Items to crush (e.g. Soda Can, Glass Cube, Diamond, Nokia 3310)'
+        required: true
+        default: 'Soda Can, Glass Cube, Bowling Ball, Nokia 3310'
+        type: string
+
+jobs:
+  build-press:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg, Edge-TTS, Playwright & Gemini
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install edge-tts playwright pillow google-genai
+          playwright install chromium
+
+      - name: Generate 3D Hydraulic Press Scenes
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ITEMS: ${{ github.event.inputs.items }}
+        run: python generate_press.py
+
+      - name: Render Voiced 3D MP4
+        run: python render_full_auto.py
+
+      - name: Upload Hydraulic Press MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydraulic_press_video
+          path: final_video.mp4
