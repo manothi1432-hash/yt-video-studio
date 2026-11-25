@@ -4,9 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       topic:
-        description: 'Enter Video Topic (e.g. Why Rome Fell)'
+        description: 'Enter Video Topic (e.g. The man who shipped ice)'
         required: true
         type: string
+      video_type:
+        description: 'Choose Video Format'
+        required: true
+        default: 'short'
+        type: choice
+        options:
+          - short
+          - long
 
 jobs:
   build-video:
@@ -30,6 +38,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TOPIC: ${{ github.event.inputs.topic }}
+          VIDEO_TYPE: ${{ github.event.inputs.video_type }}
         run: python generate_story.py
 
       - name: Render Voiced Animated MP4
