@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       topic:
-        description: 'Enter Video Topic (e.g. The man who shipped ice)'
+        description: 'Enter Topic (e.g. Would You Rather Survival, Scary Forest Mystery)'
         required: true
         type: string
       video_type:
@@ -15,6 +15,14 @@ on:
         options:
           - short
           - long
+      style:
+        description: 'Choose Style'
+        required: true
+        default: 'quiz'
+        type: choice
+        options:
+          - quiz
+          - mystery
 
 jobs:
   build-video:
@@ -39,6 +47,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TOPIC: ${{ github.event.inputs.topic }}
           VIDEO_TYPE: ${{ github.event.inputs.video_type }}
+          STYLE: ${{ github.event.inputs.style }}
         run: python generate_story.py
 
       - name: Render Voiced Animated MP4
@@ -49,3 +58,4 @@ jobs:
         with:
           name: final_video
           path: final_video.mp4
+          
