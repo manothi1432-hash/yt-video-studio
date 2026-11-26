@@ -1,3 +1,4 @@
+
 import os
 import json
 import time
@@ -14,35 +15,31 @@ vtype = os.environ.get("VIDEO_TYPE", "long").strip().lower()
 is_long = (vtype == "long")
 
 W, H = (1280, 720) if is_long else (720, 1280)
-scene_count = 14 if is_long else 8
+scene_count = 12 if is_long else 8
 show_cap = "false" if is_long else "true"
-length_hint = "1-2 crisp, dramatic US English sentences (140-220 chars) for fast 5-8s cuts" if is_long else "1 punchy US English sentence (under 130 chars)"
+length_hint = "1-2 suspenseful US English sentences (140-210 chars)" if is_long else "1 punchy US English sentence (under 130 chars)"
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-prompt = f"""You are a viral YouTube explainer director (like @fakeexplainer96).
-Break this topic into {scene_count} fast-paced visual scenes: "{topic}"
+prompt = f"""You are a viral dark-stickman YouTube storyteller.
+Break this topic into {scene_count} suspenseful action scenes: "{topic}"
 
-Return ONLY valid JSON with this exact schema:
+Return ONLY valid JSON:
 {{
   "scenes": [
     {{
       "narration": "{length_hint}",
-      "scene": "rain_field",
-      "mood": "dark",
-      "pose": "shiver",
-      "impact_text": "",
-      "has_group": false
+      "pose": "climb_cliff",
+      "accent": "#fde047",
+      "camera": "zoom_in"
     }}
   ]
 }}
 
 Allowed values:
-- scene: "rain_field" (pouring rain outdoors), "cave_fire" (warm campfire inside dark cave), "river_flood" (rising muddy river), "stickman_talk" (clean gray background closeup talking stickman), "cliff_edge" (explorer on cliff), "snow_trail" (icy mountain path)
-- mood: "dark", "warm", "gray"
-- pose: "shiver", "point", "shrug", "sit_sad", "walk", "spear"
-- impact_text: optional 1-2 word dramatic red/black text at top (e.g. "DEATH", "TRAPPED", "NO ESCAPE") on 2-3 key scenes, else ""
-- has_group: true or false (add 3-4 extra stick-figures around fire or walking)"""
+- pose: "climb_cliff" (stickman climbing sheer cliff edge with grappling hook), "dangle_rope" (hanging from rope over abyss), "run_fast" (sprinting across dark ground), "fall_abyss" (falling into deep chasm), "crouch_sneak" (sneaking on ledge), "point_up" (standing on edge pointing)
+- accent: "#fde047" (glowing gold), "#38bdf8" (glowing cyan), "#ef4444" (danger red)
+- camera: "zoom_in", "pan_up", "pan_down", "drift_right" """
 
 MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 resp = None
@@ -72,9 +69,9 @@ plan = json.loads(resp.text)
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
-  body { margin:0; overflow:hidden; background:#111; font-family:'Arial Black', Impact, sans-serif; }
+  body { margin:0; overflow:hidden; background:#05060a; font-family:'Arial Black', Impact, sans-serif; }
   canvas { display:block; width:100vw; height:100vh; }
-  #cap { position:fixed; left:50%; top:64%; transform:translate(-50%,-50%); text-align:center;
+  #cap { position:fixed; left:50%; top:72%; transform:translate(-50%,-50%); text-align:center;
          font-size:48px; font-weight:900; color:#fff; width:88%; line-height:1.12;
          text-shadow:0 4px 0 #000, -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000; }
   .hi { color:#facc15; transform:scale(1.14); display:inline-block; }
@@ -90,145 +87,134 @@ if (!SHOW_CAP) document.getElementById("cap").style.display = "none";
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
 const WORDS = CFG.narration.split(/\s+/).filter(Boolean);
+const ACCENT = CFG.accent || "#fde047";
 
-function drawStickman(x, y, s, t, pose, talking=true) {
+function seg(x1, y1, x2, y2) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+}
+
+function drawGlowStickman(cx, cy, sc, t, pose) {
   ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s, s);
-  const shiv = pose === "shiver" ? Math.sin(t * 38) * 3 : 0;
-  const bob = Math.sin(t * 6) * 4;
-  const talk = talking ? Math.abs(Math.sin(t * 14)) : 0;
-  const blink = (Math.floor(t * 2.3) % 7 === 0);
+  ctx.translate(cx, cy);
+  ctx.scale(sc, sc);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = "#ffffff"; ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(255,255,255,0.85)"; ctx.shadowBlur = 22;
+  ctx.lineWidth = 14;
 
-  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#111"; ctx.lineWidth = 8;
-
-  // Legs
-  if (pose === "sit_sad") {
-    ctx.beginPath(); ctx.moveTo(-12, 85); ctx.lineTo(-42, 130); ctx.lineTo(-18, 155); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(12, 85); ctx.lineTo(42, 130); ctx.lineTo(18, 155); ctx.stroke();
+  const breath = Math.sin(t * 4) * 2;
+  if (pose === "climb_cliff") {
+    const pull = Math.sin(t * 5) * 8;
+    // Head & Torso
+    ctx.beginPath(); ctx.arc(-18, -62 + pull, 18, 0, Math.PI*2); ctx.fill();
+    seg(-6, -42 + pull, -6, 18 + pull);
+    // Arms gripping ledge
+    seg(-6, -34 + pull, 22, -55); seg(22, -55, 22, -62);
+    seg(-6, -24 + pull, 16, -26);
+    // Bent knees against cliff wall
+    seg(-6, 18 + pull, -28, 38 + pull); seg(-28, 38 + pull, -6, 68 + pull);
+    seg(-6, 18 + pull, 18, 42 + pull); seg(18, 42 + pull, 2, 74 + pull);
+  } else if (pose === "dangle_rope") {
+    const sw = Math.sin(t * 2.8) * 14;
+    ctx.beginPath(); ctx.arc(sw, -65, 18, 0, Math.PI*2); ctx.fill();
+    seg(sw, -45, sw * 0.7, 15);
+    seg(sw, -35, 0, -78);
+    seg(sw * 0.7, 15, sw - 16, 55); seg(sw - 16, 55, sw - 6, 82);
+    seg(sw * 0.7, 15, sw + 18, 52); seg(sw + 18, 52, sw + 10, 80);
+  } else if (pose === "run_fast") {
+    const s = Math.sin(t * 11);
+    const b = Math.abs(Math.cos(t * 11)) * 6;
+    ctx.beginPath(); ctx.arc(14, -64 - b, 18, 0, Math.PI*2); ctx.fill();
+    seg(10, -44 - b, -8, 12 - b);
+    // Arms pumping
+    seg(4, -34 - b, 28 * s, -10 - b); seg(28 * s, -10 - b, 42 * s, -22 - b);
+    seg(4, -34 - b, -26 * s, -10 - b);
+    // Legs sprinting
+    seg(-8, 12 - b, 26 * s, 45 - b); seg(26 * s, 45 - b, 14 * s - 12, 82);
+    seg(-8, 12 - b, -26 * s, 45 - b); seg(-26 * s, 45 - b, -36 * s, 82);
+  } else if (pose === "fall_abyss") {
+    const fl = Math.sin(t * 14) * 12;
+    ctx.beginPath(); ctx.arc(0, -55, 18, 0, Math.PI*2); ctx.fill();
+    seg(0, -35, 4, 20);
+    seg(2, -25, -36, -50 + fl); seg(2, -25, 38, -48 - fl);
+    seg(4, 20, -24, 65 - fl); seg(4, 20, 28, 62 + fl);
+  } else if (pose === "crouch_sneak") {
+    ctx.beginPath(); ctx.arc(8, -26 + breath, 18, 0, Math.PI*2); ctx.fill();
+    seg(4, -8 + breath, -12, 26 + breath);
+    seg(0, 2 + breath, 26, 22 + breath);
+    seg(-12, 26 + breath, 12, 48); seg(12, 48, 4, 78);
+    seg(-12, 26 + breath, -28, 52); seg(-28, 52, -24, 78);
   } else {
-    const walk = pose === "walk" ? Math.sin(t * 7) * 22 : 0;
-    ctx.beginPath(); ctx.moveTo(-10+shiv, 85); ctx.lineTo(-22+walk, 165); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(10+shiv, 85); ctx.lineTo(22-walk, 165); ctx.stroke();
+    // point_up
+    ctx.beginPath(); ctx.arc(0, -64 + breath, 18, 0, Math.PI*2); ctx.fill();
+    seg(0, -44 + breath, 0, 16 + breath);
+    seg(0, -34 + breath, -26, 4 + breath);
+    seg(0, -34 + breath, 34, -56 + Math.sin(t*4)*5);
+    seg(0, 16 + breath, -18, 78); seg(0, 16 + breath, 18, 78);
   }
+  ctx.restore();
+}
 
-  // Body / Fur Tunic
-  if (CFG.scene !== "stickman_talk") {
-    ctx.fillStyle = "#b45309";
-    ctx.beginPath(); ctx.moveTo(-26+shiv, 15+bob); ctx.lineTo(26+shiv, 15+bob);
-    ctx.lineTo(34+shiv, 95+bob); ctx.lineTo(-34+shiv, 95+bob); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.moveTo(0, 10+bob); ctx.lineTo(0, 95+bob); ctx.stroke();
-  }
-
-  // Arms
-  if (pose === "point") {
-    ctx.beginPath(); ctx.moveTo(0, 28+bob); ctx.lineTo(-45, 55+bob); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, 28+bob); ctx.lineTo(52, 8+bob+Math.sin(t*5)*8); ctx.stroke();
-  } else if (pose === "shrug") {
-    ctx.beginPath(); ctx.moveTo(0, 28+bob); ctx.lineTo(-48, 38+bob); ctx.lineTo(-58, 12+bob); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, 28+bob); ctx.lineTo(48, 38+bob); ctx.lineTo(58, 12+bob); ctx.stroke();
-  } else if (pose === "spear") {
-    ctx.beginPath(); ctx.moveTo(0, 28+bob); ctx.lineTo(42, 42+bob); ctx.stroke();
-    ctx.strokeStyle = "#78350f"; ctx.lineWidth = 7;
-    ctx.beginPath(); ctx.moveTo(42, -55+bob); ctx.lineTo(42, 135); ctx.stroke();
-    ctx.fillStyle = "#94a3b8"; ctx.strokeStyle = "#111"; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(32, -55+bob); ctx.lineTo(42, -85+bob); ctx.lineTo(52, -55+bob); ctx.closePath(); ctx.fill(); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.moveTo(-18+shiv, 28+bob); ctx.lineTo(-38+shiv, 68+bob); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(18+shiv, 28+bob); ctx.lineTo(38+shiv, 68+bob); ctx.stroke();
-  }
-
-  // Head
-  ctx.fillStyle = "#fff7ed"; ctx.strokeStyle = "#111"; ctx.lineWidth = 8;
-  ctx.beginPath(); ctx.arc(shiv, -38+bob, 48, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-
-  // Hair for outdoor caveman
-  if (CFG.scene !== "stickman_talk") {
-    ctx.fillStyle = "#1c1917";
-    ctx.beginPath(); ctx.arc(shiv, -52+bob, 46, Math.PI*1.05, Math.PI*1.95); ctx.fill();
-  }
-
-  // Eyes & Brows
-  ctx.fillStyle = "#111";
-  if (blink) {
-    ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(-24+shiv,-42+bob); ctx.lineTo(-8+shiv,-42+bob);
-    ctx.moveTo(8+shiv,-42+bob); ctx.lineTo(24+shiv,-42+bob); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.arc(-16+shiv, -42+bob, 5.5, 0, Math.PI*2); ctx.arc(16+shiv, -42+bob, 5.5, 0, Math.PI*2); ctx.fill();
-  }
-  ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(-26+shiv, -56+bob); ctx.lineTo(-6+shiv, -52+bob); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(6+shiv, -52+bob); ctx.lineTo(26+shiv, -56+bob); ctx.stroke();
-
-  // Mouth
-  ctx.fillStyle = "#7f1d1d"; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.ellipse(shiv, -14+bob, 11, 3 + talk*8, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+function drawGlowingLedge(x, y, w, h) {
+  ctx.fillStyle = "#0a0c12";
+  ctx.fillRect(x, y, w, h);
+  ctx.save();
+  ctx.strokeStyle = ACCENT; ctx.lineWidth = 3;
+  ctx.shadowColor = ACCENT; ctx.shadowBlur = 14;
+  ctx.strokeRect(x, y, w, h);
   ctx.restore();
 }
 
 window.renderAt = (t, d) => {
   const p = Math.min(1, t / Math.max(0.1, d));
-  const sc = CFG.scene || "rain_field";
-  ctx.clearRect(0, 0, W, H);
+  const pose = CFG.pose || "climb_cliff";
 
-  ctx.save();
-  const zoom = 1.0 + p * 0.08;
-  ctx.translate(W/2, H/2); ctx.scale(zoom, zoom); ctx.translate(-W/2, -H/2);
+  // Dark Vignette Sky
+  const grad = ctx.createRadialGradient(W*0.5, H*0.45, 40, W*0.5, H*0.5, Math.max(W, H)*0.75);
+  grad.addColorStop(0, "#131722"); grad.addColorStop(1, "#030407");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
-  if (sc === "stickman_talk") {
-    ctx.fillStyle = "#d6d3d1"; ctx.fillRect(0, 0, W, H);
-    drawStickman(W*0.5, H*0.56, W<H ? 1.8 : 2.1, t, CFG.pose || "point", true);
-  } else if (sc === "cave_fire") {
-    ctx.fillStyle = "#1c1917"; ctx.fillRect(0, 0, W, H);
-    // Cave opening
-    ctx.fillStyle = "#334155";
-    ctx.beginPath(); ctx.arc(W*0.5, H*0.65, W*0.42, Math.PI, 0); ctx.fill();
-    ctx.fillStyle = "#44403c"; ctx.fillRect(0, H*0.68, W, H*0.32);
-    // Flickering Campfire
-    const fl = Math.sin(t*18)*8;
-    ctx.fillStyle = "#f97316";
-    ctx.beginPath(); ctx.moveTo(W*0.45, H*0.76); ctx.lineTo(W*0.5, H*0.56+fl); ctx.lineTo(W*0.55, H*0.76); ctx.fill();
-    ctx.fillStyle = "#facc15";
-    ctx.beginPath(); ctx.moveTo(W*0.47, H*0.76); ctx.lineTo(W*0.5, H*0.62-fl*0.6); ctx.lineTo(W*0.53, H*0.76); ctx.fill();
-    drawStickman(W*0.3, H*0.62, 1.15, t, "sit_sad", true);
-    if (CFG.has_group) drawStickman(W*0.7, H*0.62, 1.15, t+1, "sit_sad", false);
-  } else if (sc === "river_flood") {
-    ctx.fillStyle = "#64748b"; ctx.fillRect(0, 0, W, H*0.55);
-    ctx.fillStyle = "#78716c"; ctx.fillRect(0, H*0.5, W*0.42, H*0.5);
-    ctx.fillStyle = "#b45309";
-    ctx.beginPath(); ctx.moveTo(W*0.35, H*0.52);
-    for(let x=W*0.35; x<=W; x+=40) ctx.lineTo(x, H*0.62 + Math.sin(x*0.03 + t*5)*12);
-    ctx.lineTo(W, H); ctx.lineTo(W*0.35, H); ctx.closePath(); ctx.fill();
-    drawStickman(W*0.24, H*0.46, 1.25, t, CFG.pose || "spear", true);
-  } else {
-    // Rain / Cliff / Snow outdoor
-    const isSnow = (sc === "snow_trail");
-    ctx.fillStyle = isSnow ? "#cbd5e1" : "#64748b"; ctx.fillRect(0, 0, W, H*0.62);
-    ctx.fillStyle = isSnow ? "#e2e8f0" : "#78350f"; ctx.fillRect(0, H*0.62, W, H*0.38);
-    ctx.strokeStyle = "#451a03"; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(0, H*0.62); ctx.lineTo(W, H*0.62); ctx.stroke();
-    drawStickman(W*0.5, H*0.54, W<H ? 1.35 : 1.45, t, CFG.pose || "shiver", true);
-    if (CFG.has_group) drawStickman(W*0.25, H*0.55, 1.1, t+0.8, "walk", false);
-    // Rain or Snow streaks
-    ctx.strokeStyle = isSnow ? "rgba(255,255,255,0.85)" : "rgba(226,232,240,0.55)";
-    ctx.lineWidth = isSnow ? 4 : 2.5;
-    for (let i=0; i<55; i++) {
-      const rx = (i * 97 + t * (isSnow ? 40 : 180)) % W;
-      const ry = (i * 61 + t * (isSnow ? 160 : 620)) % H;
-      ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - (isSnow?2:8), ry + (isSnow?5:24)); ctx.stroke();
-    }
+  // Subtle Floating Dust Particles
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  for (let i=0; i<28; i++) {
+    const dx = (i * 137 + t * 18) % W;
+    const dy = (i * 89 + t * (pose==="fall_abyss"?-160:12) + H) % H;
+    ctx.beginPath(); ctx.arc(dx, dy, 1.5 + (i%2), 0, Math.PI*2); ctx.fill();
   }
 
-  // Big Red Impact Word (like "Death" in @fakeexplainer96)
-  if (CFG.impact_text) {
-    ctx.fillStyle = "#dc2626"; ctx.strokeStyle = "#000"; ctx.lineWidth = 10;
-    ctx.font = `900 ${W<H ? 68 : 88}px Arial Black, Impact, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.strokeText(CFG.impact_text, W*0.5, H*0.18);
-    ctx.fillText(CFG.impact_text, W*0.5, H*0.18);
+  ctx.save();
+  let z = 1.0 + p * 0.14;
+  let py = 0, px = 0;
+  if (CFG.camera === "pan_up") py = (1 - p) * 35;
+  else if (CFG.camera === "pan_down") py = -p * 35;
+  else if (CFG.camera === "drift_right") px = -p * 30;
+  ctx.translate(W/2 + px, H/2 + py); ctx.scale(z, z); ctx.translate(-W/2, -H/2);
+
+  const sc = W < H ? 1.15 : 1.25;
+  if (pose === "climb_cliff") {
+    drawGlowingLedge(-10, H*0.52, W*0.24, H*0.55);
+    drawGlowingLedge(W*0.56, H*0.46, W*0.48, H*0.60);
+    // Grappling Hook
+    ctx.save(); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 4;
+    ctx.shadowColor = "#fff"; ctx.shadowBlur = 8;
+    seg(W*0.56 + 18, H*0.46 - 2, W*0.56 + 18, H*0.46 - 20);
+    ctx.beginPath(); ctx.arc(W*0.56 + 18, H*0.46 - 14, 12, 0, Math.PI); ctx.stroke();
+    ctx.restore();
+    drawGlowStickman(W*0.52, H*0.48, sc, t, pose);
+  } else if (pose === "dangle_rope") {
+    ctx.save(); ctx.strokeStyle = ACCENT; ctx.lineWidth = 4;
+    ctx.shadowColor = ACCENT; ctx.shadowBlur = 12;
+    seg(W*0.5, 0, W*0.5, H*0.42);
+    ctx.restore();
+    drawGlowStickman(W*0.5, H*0.48, sc, t, pose);
+  } else if (pose === "fall_abyss") {
+    drawGlowingLedge(-10, -10, W*0.22, H+20);
+    drawGlowingLedge(W*0.78, -10, W*0.25, H+20);
+    drawGlowStickman(W*0.5, H*0.42 + p*45, sc, t, pose);
+  } else {
+    drawGlowingLedge(-10, H*0.62, W+20, H*0.45);
+    const sx = pose === "run_fast" ? W*(0.35 + p*0.3) : W*0.5;
+    drawGlowStickman(sx, H*0.62 - 80*sc, sc, t, pose);
   }
   ctx.restore();
 
@@ -254,6 +240,6 @@ for sc in plan["scenes"]:
         "html": html
     })
 
-out = {"width": W, "height": H, "voice": "en-US-BrianMultilingualNeural", "scenes": story_scenes}
+out = {"width": W, "height": H, "voice": "en-US-AndrewMultilingualNeural", "scenes": story_scenes}
 Path("story.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-print(f"Generated {len(story_scenes)} ({vtype}) @fakeexplainer96-style scenes for: {topic}")
+print(f"Generated {len(story_scenes)} ({vtype}) Glowing Neon Stickman scenes for: {topic}")
