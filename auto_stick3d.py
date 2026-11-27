@@ -24,7 +24,6 @@ def ask_gemini(prompt: str, as_json: bool = False) -> str:
                 time.sleep(4)
     raise RuntimeError(f"Gemini failed: {last_err}")
 
-# 1. Locate unzipped pack directories
 pkg = next(Path(".").rglob("engine/package.json"))
 eng_dir = pkg.parent
 pack_root = eng_dir.parent
@@ -32,7 +31,6 @@ prep_script = next(pack_root.rglob("prep_voice.py"))
 pub_dir = eng_dir / "public"
 pub_dir.mkdir(parents=True, exist_ok=True)
 
-# 2. Generate 5-sentence US English script (~20-24s)
 script_text = ask_gemini(
     f'Write a punchy 5-sentence US English YouTube Shorts voiceover script (max 360 characters total, no emojis, no labels, plain text only) about: "{topic}"'
 ).strip().strip('"')
@@ -40,14 +38,29 @@ script_file = pack_root / "custom_script.txt"
 script_file.write_text(script_text, encoding="utf-8")
 print("Script:", script_text)
 
-# 3. Generate US Voiceover + convert to WAV + run prep_voice.py
 mp3_raw = pack_root / "voice_raw.mp3"
 wav_raw = pack_root / "voice_raw.wav"
-subprocess.run(["edge-tts", "--voice", "en-US-AndrewMultilingualNeural", "--rate=+12%", "--text", script_text, "--write-media", str(mp3_raw)], check=True)
+
+tts_ok = False
+for v in ["en-US-AndrewNeural", "en-US-GuyNeural", "en-US-ChristopherNeural", "en-US-BrianNeural"]:
+    try:
+        subprocess.run(["edge-tts", "--voice", v, "--text", script_text, "--write-media", str(mp3_raw)], check=True)
+        if mp3_raw.exists() and mp3_raw.stat().st_size > 1000:
+            tts_ok = True
+            print("TTS success with:", v)
+            break
+    except Exception as e:
+        print(f"edge-tts {v} failed: {e}")
+        time.sleep(2)
+
+if not tts_ok:
+    print("Falling back to gTTS...")
+    from gtts import gTTS
+    gTTS(text=script_text, lang="en", tld="com").save(str(mp3_raw))
+
 subprocess.run(["ffmpeg", "-y", "-i", str(mp3_raw), "-ar", "16000", "-ac", "1", str(wav_raw)], check=True)
 subprocess.run(["python3", str(prep_script), str(wav_raw), str(script_file)], cwd=str(pack_root), check=True)
 
-# Ensure mix.wav exists if template uses mix.wav
 voice_wav = pub_dir / "voice.wav"
 mix_wav = pub_dir / "mix.wav"
 if voice_wav.exists() and not mix_wav.exists():
@@ -58,7 +71,6 @@ nvidia_v4 = (eng_dir / "src/videos/NvidiaV4.tsx").read_text(encoding="utf-8") if
 kit_tsx = (eng_dir / "src/style/kit.tsx").read_text(encoding="utf-8") if (eng_dir / "src/style/kit.tsx").exists() else ""
 root_tsx = (eng_dir / "src/Root.tsx").read_text(encoding="utf-8")
 
-# 4. Ask Gemini to build CustomVideo.tsx & register it in Root.tsx
 code_prompt = f"""You are a Remotion + Three.js developer working inside this exact codebase.
 Create a complete 5-scene vertical 9:16 (720x1280, 30fps) video component `CustomVideo` in `src/videos/CustomVideo.tsx` for the topic: "{topic}".
 
@@ -90,7 +102,6 @@ custom_path.parent.mkdir(parents=True, exist_ok=True)
 custom_path.write_text(gen["custom_video_tsx"], encoding="utf-8")
 (eng_dir / "src/Root.tsx").write_text(gen["root_tsx"], encoding="utf-8")
 
-# 5. Render with 1 automatic TypeScript error self-fix retry
 gl = (pack_root / ".gl-flag").read_text().strip() if (pack_root / ".gl-flag").exists() else "swangle"
 out_mp4 = Path("remotion_video.mp4").resolve()
 
