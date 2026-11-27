@@ -32,7 +32,7 @@ pub_dir = eng_dir / "public"
 pub_dir.mkdir(parents=True, exist_ok=True)
 
 script_text = ask_gemini(
-    f'Write a punchy 5-sentence US English YouTube Shorts voiceover script (max 360 characters total, no emojis, no labels, plain text only) about: "{topic}"'
+    f'Write a punchy 5-sentence US English YouTube Shorts voiceover script (max 360 chars, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9 and ZERO $/% symbols, plain text only) about: "{topic}"'
 ).strip().strip('"')
 script_file = (pack_root / "custom_script.txt").resolve()
 script_file.write_text(script_text, encoding="utf-8")
