@@ -59,7 +59,7 @@ if not tts_ok:
     gTTS(text=script_text, lang="en", tld="com").save(str(mp3_raw))
 
 subprocess.run(["ffmpeg", "-y", "-i", str(mp3_raw), "-ar", "16000", "-ac", "1", str(wav_raw)], check=True)
-subprocess.run(["python3", str(prep_script), str(wav_raw), str(script_file)], cwd=str(pack_root), check=True)
+subprocess.run(["python3", str(prep_script.resolve()), str(wav_raw.resolve()), str(script_file.resolve())], cwd=str(pack_root.resolve()), check=True)
 
 voice_wav = pub_dir / "voice.wav"
 mix_wav = pub_dir / "mix.wav"
