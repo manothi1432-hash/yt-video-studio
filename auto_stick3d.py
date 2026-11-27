@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import subprocess
@@ -32,8 +33,12 @@ pub_dir = eng_dir / "public"
 pub_dir.mkdir(parents=True, exist_ok=True)
 
 script_text = ask_gemini(
-    f'Write a punchy 5-sentence US English YouTube Shorts voiceover script (max 360 chars, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9 and ZERO $/% symbols, plain text only) about: "{topic}"'
+    f'Write a punchy 5-sentence US English YouTube Shorts voiceover script (max 350 chars, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9, ZERO $/% symbols, and NO hyphenated words, plain text only) about: "{topic}"'
 ).strip().strip('"')
+# Extra safety: ask Gemini to spell out any remaining digits if present
+if re.search(r"[0-9$%]", script_text):
+    script_text = ask_gemini(f"Rewrite this text spelling out every number and symbol in plain English words only, no digits:\n{script_text}").strip().strip('"')
+
 script_file = (pack_root / "custom_script.txt").resolve()
 script_file.write_text(script_text, encoding="utf-8")
 print("Script:", script_text)
@@ -54,7 +59,6 @@ for v in ["en-US-AndrewNeural", "en-US-GuyNeural", "en-US-ChristopherNeural", "e
         time.sleep(2)
 
 if not tts_ok:
-    print("Falling back to gTTS...")
     from gtts import gTTS
     gTTS(text=script_text, lang="en", tld="com").save(str(mp3_raw))
 
