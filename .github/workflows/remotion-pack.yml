@@ -1,0 +1,44 @@
+name: Run Stick3dpack Remotion
+
+on:
+  workflow_dispatch:
+
+jobs:
+  render-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22 & Python 3.11
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FFmpeg & Tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg bc unzip
+
+      - name: Unzip Pack & Run Setup
+        run: |
+          ZIP_FILE=$(ls *.zip | head -n 1)
+          unzip -o "$ZIP_FILE"
+          SETUP=$(find . -name "setup.sh" | head -n 1)
+          chmod +x "$SETUP"
+          bash "$SETUP"
+
+      - name: Render Remotion MP4
+        run: |
+          ENG_DIR=$(dirname $(find . -path "*/engine/package.json" | head -n 1))
+          cd "$ENG_DIR"
+          GL=$(cat ../.gl-flag 2>/dev/null || echo "swangle")
+          npx remotion render Main ../../remotion_video.mp4 --gl=$GL --log=error
+          find ../.. -name "remotion_video.mp4" -exec cp {} ../../remotion_video.mp4 \; 2>/dev/null || true
+
+      - name: Upload Final Remotion MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: remotion_video
+          path: remotion_video.mp4
