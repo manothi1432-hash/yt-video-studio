@@ -26,7 +26,7 @@ jobs:
       - name: Install FFmpeg, Edge-TTS & Gemini
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg bc unzip
-          pip install edge-tts google-genai
+          pip install -U edge-tts gTTS google-genai
 
       - name: Unzip Pack & Run Setup
         run: |
