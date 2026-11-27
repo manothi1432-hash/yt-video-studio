@@ -35,7 +35,6 @@ pub_dir.mkdir(parents=True, exist_ok=True)
 script_text = ask_gemini(
     f'Write a punchy 5-sentence US English YouTube Shorts voiceover script (max 350 chars, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9, ZERO $/% symbols, and NO hyphenated words, plain text only) about: "{topic}"'
 ).strip().strip('"')
-# Extra safety: ask Gemini to spell out any remaining digits if present
 if re.search(r"[0-9$%]", script_text):
     script_text = ask_gemini(f"Rewrite this text spelling out every number and symbol in plain English words only, no digits:\n{script_text}").strip().strip('"')
 
@@ -70,10 +69,16 @@ mix_wav = pub_dir / "mix.wav"
 if voice_wav.exists() and not mix_wav.exists():
     mix_wav.write_bytes(voice_wav.read_bytes())
 
-words_json = (pub_dir / "words.json").read_text(encoding="utf-8")
-nvidia_v4 = (eng_dir / "src/videos/NvidiaV4.tsx").read_text(encoding="utf-8") if (eng_dir / "src/videos/NvidiaV4.tsx").exists() else ""
-kit_tsx = (eng_dir / "src/style/kit.tsx").read_text(encoding="utf-8") if (eng_dir / "src/style/kit.tsx").exists() else ""
-root_tsx = (eng_dir / "src/Root.tsx").read_text(encoding="utf-8")
+def read_opt(rel):
+    p = eng_dir / rel
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+words_json = read_opt("public/words.json")
+nvidia_v4 = read_opt("src/videos/NvidiaV4.tsx")
+kit_tsx = read_opt("src/style/kit.tsx")
+extra_tsx = read_opt("src/style/extra.tsx")
+props_tsx = read_opt("src/style/props.tsx")
+root_tsx = read_opt("src/Root.tsx")
 
 code_prompt = f"""You are a Remotion + Three.js developer working inside this exact codebase.
 Create a complete 5-scene vertical 9:16 (720x1280, 30fps) video component `CustomVideo` in `src/videos/CustomVideo.tsx` for the topic: "{topic}".
@@ -87,8 +92,14 @@ Word timings (`public/words.json`):
 Reference working video (`src/videos/NvidiaV4.tsx`):
 {nvidia_v4[:9000]}
 
-Available helper components (`src/style/kit.tsx`):
-{kit_tsx[:6000]}
+Helpers (`src/style/kit.tsx`):
+{kit_tsx[:5000]}
+
+Extra helpers (`src/style/extra.tsx`):
+{extra_tsx[:5000]}
+
+Props (`src/style/props.tsx`):
+{props_tsx[:4000]}
 
 Current `src/Root.tsx`:
 {root_tsx}
@@ -98,7 +109,7 @@ Return ONLY valid JSON with two keys:
   "custom_video_tsx": "full TypeScript code for src/videos/CustomVideo.tsx exporting CustomVideo",
   "root_tsx": "updated src/Root.tsx registering Composition id='CustomVideo' with the exact total durationInFrames matching words.json end time * 30"
 }}
-Use ONLY imports and props that exist in NvidiaV4.tsx and kit.tsx. Include <Audio src={{staticFile("mix.wav")}} />."""
+CRITICAL: Use ONLY imports and exact prop signatures from NvidiaV4.tsx, kit.tsx, extra.tsx, props.tsx. Never pass undefined props. Include <Audio src={{staticFile("mix.wav")}} />."""
 
 gen = json.loads(ask_gemini(code_prompt, as_json=True))
 custom_path = eng_dir / "src/videos/CustomVideo.tsx"
@@ -121,6 +132,7 @@ for attempt in range(2):
     if attempt == 0:
         fix = json.loads(ask_gemini(
             f"Fix the TypeScript/Remotion error in `CustomVideo.tsx` or `Root.tsx`:\n{res.stderr[-2500:]}\n\n"
+            f"extra.tsx:\n{extra_tsx[:4000]}\n\n"
             f"CustomVideo.tsx:\n{custom_path.read_text()}\n\nRoot.tsx:\n{(eng_dir / 'src/Root.tsx').read_text()}\n\n"
             'Return ONLY JSON: {"custom_video_tsx": "...", "root_tsx": "..."}',
             as_json=True
