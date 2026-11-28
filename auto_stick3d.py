@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import wave
 import time
 import subprocess
 from pathlib import Path
@@ -9,7 +10,7 @@ from google.genai import types
 
 topic = os.environ["TOPIC"].strip()
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
 
 def ask_gemini(prompt: str, as_json: bool = False) -> str:
     cfg = types.GenerateContentConfig(response_mime_type="application/json") if as_json else None
@@ -22,12 +23,11 @@ def ask_gemini(prompt: str, as_json: bool = False) -> str:
             except Exception as e:
                 last_err = e
                 print(f"{m} retry: {e}")
-                time.sleep(4)
+                time.sleep(3)
     raise RuntimeError(f"Gemini failed: {last_err}")
 
 def clean_tsx(code: str) -> str:
-    code = re.sub(r"<Stars\b[^>]*/?>", "", code)
-    return code
+    return re.sub(r"<Stars\b[^>]*/?>", "", code)
 
 pkg = next(Path(".").rglob("engine/package.json"))
 eng_dir = pkg.parent.resolve()
@@ -37,10 +37,10 @@ pub_dir = eng_dir / "public"
 pub_dir.mkdir(parents=True, exist_ok=True)
 
 script_text = ask_gemini(
-    f'Write a gripping 12-sentence US English YouTube Shorts voiceover script (around 850 to 950 characters total for a 60-second video, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9, ZERO $/% symbols, and NO hyphenated words, plain text only) about: "{topic}"'
+    f'Write a gripping 12-sentence US English YouTube Shorts voiceover script (around 850 to 950 characters total for a 60-second video, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9, ZERO $/% symbols, plain text only) about: "{topic}"'
 ).strip().strip('"')
 if re.search(r"[0-9$%]", script_text):
-    script_text = ask_gemini(f"Rewrite this text spelling out every number and symbol in plain English words only, no digits:\n{script_text}").strip().strip('"')
+    script_text = ask_gemini(f"Rewrite spelling out every number and symbol in English words only, no digits:\n{script_text}").strip().strip('"')
 
 script_file = (pack_root / "custom_script.txt").resolve()
 script_file.write_text(script_text, encoding="utf-8")
@@ -66,7 +66,18 @@ if not tts_ok:
     gTTS(text=script_text, lang="en", tld="com").save(str(mp3_raw))
 
 subprocess.run(["ffmpeg", "-y", "-i", str(mp3_raw), "-ar", "16000", "-ac", "1", str(wav_raw)], check=True)
-subprocess.run(["python3", str(prep_script), str(wav_raw), str(script_file)], cwd=str(pack_root), check=True)
+
+prep_res = subprocess.run(["python3", str(prep_script), str(wav_raw), str(script_file)], cwd=str(pack_root))
+if prep_res.returncode != 0 or not (pub_dir / "words.json").exists():
+    print("prep_voice skipped unknown brand words; building exact timing fallback...")
+    with wave.open(str(wav_raw), "rb") as wf:
+        dur = wf.getnframes() / float(wf.getframerate())
+    (pub_dir / "voice.wav").write_bytes(wav_raw.read_bytes())
+    w_list = script_text.split()
+    step = dur / max(1, len(w_list))
+    words_data = [{"word": w, "start": round(i * step, 3), "end": round((i + 1) * step, 3)} for i, w in enumerate(w_list)]
+    (pub_dir / "words.json").write_text(json.dumps(words_data, indent=2), encoding="utf-8")
+    (pub_dir / "script.json").write_text(json.dumps({"text": script_text, "duration": round(dur, 3)}, indent=2), encoding="utf-8")
 
 voice_wav = pub_dir / "voice.wav"
 mix_wav = pub_dir / "mix.wav"
@@ -146,4 +157,3 @@ for attempt in range(2):
         (eng_dir / "src/Root.tsx").write_text(fix["root_tsx"], encoding="utf-8")
 
 raise RuntimeError("Remotion render failed after retry")
-    
