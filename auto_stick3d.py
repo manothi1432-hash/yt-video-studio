@@ -33,7 +33,7 @@ pub_dir = eng_dir / "public"
 pub_dir.mkdir(parents=True, exist_ok=True)
 
 script_text = ask_gemini(
-    f'Write a punchy 5-sentence US English YouTube Shorts voiceover script (max 350 chars, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9, ZERO $/% symbols, and NO hyphenated words, plain text only) about: "{topic}"'
+    f'Write a gripping 12-sentence US English YouTube Shorts voiceover script (around 850 to 950 characters total for a 60-second video, spell out ALL numbers in words like "two hundred" with ZERO digits 0-9, ZERO $/% symbols, and NO hyphenated words, plain text only) about: "{topic}"'
 ).strip().strip('"')
 if re.search(r"[0-9$%]", script_text):
     script_text = ask_gemini(f"Rewrite this text spelling out every number and symbol in plain English words only, no digits:\n{script_text}").strip().strip('"')
@@ -81,13 +81,14 @@ props_tsx = read_opt("src/style/props.tsx")
 root_tsx = read_opt("src/Root.tsx")
 
 code_prompt = f"""You are a Remotion + Three.js developer working inside this exact codebase.
-Create a complete 5-scene vertical 9:16 (720x1280, 30fps) video component `CustomVideo` in `src/videos/CustomVideo.tsx` for the topic: "{topic}".
+Create a complete 10-scene (60-second) vertical 9:16 (720x1280, 30fps) video component `CustomVideo` in `src/videos/CustomVideo.tsx` for the topic: "{topic}".
+Alternate different 3D rooms, camera angles, props, and character expressions from NvidiaV4.tsx every 5-6 seconds.
 
 Script:
 {script_text}
 
 Word timings (`public/words.json`):
-{words_json[:6000]}
+{words_json[:15000]}
 
 Reference working video (`src/videos/NvidiaV4.tsx`):
 {nvidia_v4[:9000]}
@@ -141,3 +142,4 @@ for attempt in range(2):
         (eng_dir / "src/Root.tsx").write_text(fix["root_tsx"], encoding="utf-8")
 
 raise RuntimeError("Remotion render failed after retry")
+    
