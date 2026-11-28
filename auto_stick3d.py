@@ -25,6 +25,10 @@ def ask_gemini(prompt: str, as_json: bool = False) -> str:
                 time.sleep(4)
     raise RuntimeError(f"Gemini failed: {last_err}")
 
+def clean_tsx(code: str) -> str:
+    code = re.sub(r"<Stars\b[^>]*/?>", "", code)
+    return code
+
 pkg = next(Path(".").rglob("engine/package.json"))
 eng_dir = pkg.parent.resolve()
 pack_root = eng_dir.parent.resolve()
@@ -110,12 +114,12 @@ Return ONLY valid JSON with two keys:
   "custom_video_tsx": "full TypeScript code for src/videos/CustomVideo.tsx exporting CustomVideo",
   "root_tsx": "updated src/Root.tsx registering Composition id='CustomVideo' with the exact total durationInFrames matching words.json end time * 30"
 }}
-CRITICAL: Use ONLY imports and exact prop signatures from NvidiaV4.tsx, kit.tsx, extra.tsx, props.tsx. Never pass undefined props. Include <Audio src={{staticFile("mix.wav")}} />."""
+CRITICAL: Use ONLY imports and exact prop signatures from NvidiaV4.tsx, kit.tsx, extra.tsx, props.tsx. NEVER use <Stars> anywhere. Never pass undefined props. Include <Audio src={{staticFile("mix.wav")}} />."""
 
 gen = json.loads(ask_gemini(code_prompt, as_json=True))
 custom_path = eng_dir / "src/videos/CustomVideo.tsx"
 custom_path.parent.mkdir(parents=True, exist_ok=True)
-custom_path.write_text(gen["custom_video_tsx"], encoding="utf-8")
+custom_path.write_text(clean_tsx(gen["custom_video_tsx"]), encoding="utf-8")
 (eng_dir / "src/Root.tsx").write_text(gen["root_tsx"], encoding="utf-8")
 
 gl = (pack_root / ".gl-flag").read_text().strip() if (pack_root / ".gl-flag").exists() else "swangle"
@@ -132,13 +136,13 @@ for attempt in range(2):
     print(f"Render attempt {attempt+1} failed:\n{res.stderr[-2500:]}")
     if attempt == 0:
         fix = json.loads(ask_gemini(
-            f"Fix the TypeScript/Remotion error in `CustomVideo.tsx` or `Root.tsx`:\n{res.stderr[-2500:]}\n\n"
+            f"Fix the TypeScript/Remotion error in `CustomVideo.tsx` or `Root.tsx` (NEVER use <Stars>):\n{res.stderr[-2500:]}\n\n"
             f"extra.tsx:\n{extra_tsx[:4000]}\n\n"
             f"CustomVideo.tsx:\n{custom_path.read_text()}\n\nRoot.tsx:\n{(eng_dir / 'src/Root.tsx').read_text()}\n\n"
             'Return ONLY JSON: {"custom_video_tsx": "...", "root_tsx": "..."}',
             as_json=True
         ))
-        custom_path.write_text(fix["custom_video_tsx"], encoding="utf-8")
+        custom_path.write_text(clean_tsx(fix["custom_video_tsx"]), encoding="utf-8")
         (eng_dir / "src/Root.tsx").write_text(fix["root_tsx"], encoding="utf-8")
 
 raise RuntimeError("Remotion render failed after retry")
